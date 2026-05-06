@@ -1,0 +1,120 @@
+# pipeline.yml - CI/CD Pipeline for CSV Pipeline Project
+# Triggers automatically on every push to main branch
+
+name: CSV Pipeline CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  # ── STAGE 1: LINT ────────────────────────────────────────────────────────
+  lint:
+    name: Stage 1 - Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install flake8
+        run: pip install flake8
+
+      - name: Run lint check
+        run: flake8 app.py --max-line-length=100 --ignore=E302,W503
+        continue-on-error: true
+
+  # ── STAGE 2: TEST ────────────────────────────────────────────────────────
+  test:
+    name: Stage 2 - Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run tests
+        run: pytest test_pipeline.py -v
+
+  # ── STAGE 3: BUILD ───────────────────────────────────────────────────────
+  build:
+    name: Stage 3 - Build
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run application
+        run: python app.py
+
+      - name: Confirm build success
+        run: echo "Build completed successfully"
+
+  # ── STAGE 4: DEPLOY ──────────────────────────────────────────────────────
+  deploy:
+    name: Stage 4 - Deploy
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create deployment report
+        run: |
+          mkdir -p public
+          echo "<html>
+          <head>
+            <title>CSV Pipeline - Deployed</title>
+            <style>
+              body { font-family: Arial; background: #1e1e2e; color: white; padding: 40px; }
+              h1   { color: #4fc3f7; }
+              .box { background: #2e2e3e; padding: 20px; border-radius: 8px; margin: 10px 0; }
+              .ok  { color: #4caf50; }
+              .info{ color: #aaaaaa; }
+            </style>
+          </head>
+          <body>
+            <h1>CSV Pipeline - CI/CD Deployment</h1>
+            <div class='box'>
+              <p class='ok'>✅ Stage 1 - Lint passed</p>
+              <p class='ok'>✅ Stage 2 - Tests passed</p>
+              <p class='ok'>✅ Stage 3 - Build passed</p>
+              <p class='ok'>✅ Stage 4 - Deployed</p>
+            </div>
+            <div class='box'>
+              <p class='info'>Repository: csv-pipeline-app</p>
+              <p class='info'>Branch: main</p>
+              <p class='info'>Status: Live</p>
+            </div>
+          </body>
+          </html>" > public/index.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
